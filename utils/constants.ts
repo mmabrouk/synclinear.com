@@ -8,7 +8,7 @@ export const LINEAR = {
     OAUTH_ID: process.env.NEXT_PUBLIC_LINEAR_OAUTH_ID,
     OAUTH_URL: "https://linear.app/oauth/authorize",
     TOKEN_URL: "https://api.linear.app/oauth/token",
-    SCOPES: ["admin","write"],
+    SCOPES: ["admin", "write"],
     NEW_TOKEN_URL: "https://linear.app/settings/api",
     TOKEN_SECTION_HEADER: "Personal API keys",
     GRAPHQL_ENDPOINT: "https://api.linear.app/graphql",
@@ -29,6 +29,7 @@ export const LINEAR = {
 };
 
 export const SHARED = {
+    SYNC_COMMENTS_FROM_LINEAR_TO_GITHUB: false,
     PRIORITY_LABELS: {
         0: { name: "No priority", color: colors.gray["500"], value: 0 },
         1: { name: "Urgent", color: colors.red["600"], value: 1 },

@@ -264,13 +264,12 @@ export async function linearWebhookHandler(
                 headers: defaultHeaders,
                 json: {
                     title: `[${ticketName}] ${data.title}`,
-                    body: `${
-                        modifiedDescription ?? ""
-                    }\n\n<sub>${getSyncFooter()} | [${ticketName}](${url})</sub>`,
+                    body: `${modifiedDescription ?? ""
+                        }\n\n<sub>${getSyncFooter()} | [${ticketName}](${url})</sub>`,
                     ...(data.assigneeId &&
                         assignee?.githubUsername && {
-                            assignees: [assignee?.githubUsername]
-                        })
+                        assignees: [assignee?.githubUsername]
+                    })
                 }
             });
 
@@ -309,8 +308,7 @@ export async function linearWebhookHandler(
                 linearQuery(attachmentQuery, linearKey).then(response => {
                     if (!response?.data?.attachmentCreate?.success) {
                         console.log(
-                            `Failed to add attachment to ${ticketName} for ${
-                                createdIssueData.id
+                            `Failed to add attachment to ${ticketName} for ${createdIssueData.id
                             }: ${response?.error || ""}.`
                         );
                     } else {
@@ -406,48 +404,52 @@ export async function linearWebhookHandler(
             }
 
             // Sync all comments on the issue
-            const linearComments = await linearIssue.comments().then(comments =>
-                Promise.all(
-                    comments.nodes.map(comment =>
-                        comment.user?.then(user => ({
-                            comment,
-                            user
-                        }))
+            if (SHARED.SYNC_COMMENTS_FROM_LINEAR_TO_GITHUB) {
+                const linearComments = await linearIssue.comments().then(comments =>
+                    Promise.all(
+                        comments.nodes.map(comment =>
+                            comment.user?.then(user => ({
+                                comment,
+                                user
+                            }))
+                        )
                     )
-                )
-            );
-
-            for (const linearComment of linearComments) {
-                if (!linearComment) continue;
-
-                const { comment, user } = linearComment;
-
-                const modifiedComment = await replaceMentions(
-                    comment.body,
-                    "linear"
-                );
-                const footer = getGithubFooterWithLinearCommentId(
-                    user.displayName,
-                    comment.id
                 );
 
-                const { error: commentError } = await createComment({
-                    repoFullName,
-                    issueNumber: BigInt(createdIssueData.number),
-                    body: `${modifiedComment || ""}${footer}`,
-                    githubAuthHeader,
-                    userAgentHeader
-                });
+                for (const linearComment of linearComments) {
+                    if (!linearComment) continue;
 
-                if (commentError) {
-                    console.log(
-                        `Failed to add comment to ${createdIssueData.id} for ${ticketName}.`
+                    const { comment, user } = linearComment;
+
+                    const modifiedComment = await replaceMentions(
+                        comment.body,
+                        "linear"
                     );
-                } else {
-                    console.log(
-                        `Created comment on ${createdIssueData.id} for ${ticketName}.`
+                    const footer = getGithubFooterWithLinearCommentId(
+                        user.displayName,
+                        comment.id
                     );
+
+                    const { error: commentError } = await createComment({
+                        repoFullName,
+                        issueNumber: BigInt(createdIssueData.number),
+                        body: `${modifiedComment || ""}${footer}`,
+                        githubAuthHeader,
+                        userAgentHeader
+                    });
+
+                    if (commentError) {
+                        console.log(
+                            `Failed to add comment to ${createdIssueData.id} for ${ticketName}.`
+                        );
+                    } else {
+                        console.log(
+                            `Created comment on ${createdIssueData.id} for ${ticketName}.`
+                        );
+                    }
                 }
+            } else {
+                console.log("Skipping Linear comments sync to GitHub (disabled by configuration)");
             }
         }
 
@@ -507,9 +509,8 @@ export async function linearWebhookHandler(
                 {
                     headers: defaultHeaders,
                     json: {
-                        body: `${
-                            modifiedDescription ?? ""
-                        }\n\n<sub>${getSyncFooter()} | [${ticketName}](${url})</sub>`
+                        body: `${modifiedDescription ?? ""
+                            }\n\n<sub>${getSyncFooter()} | [${ticketName}](${url})</sub>`
                     }
                 }
             );
@@ -593,8 +594,8 @@ export async function linearWebhookHandler(
                     ? !resource.name
                         ? `v.${(resource as Cycle).number}`
                         : isNumber(resource.name)
-                        ? `v.${resource.name}`
-                        : resource.name
+                            ? `v.${resource.name}`
+                            : resource.name
                     : resource.name || "?";
 
                 const today = new Date();
@@ -602,8 +603,8 @@ export async function linearWebhookHandler(
                 const endDate = (resource as Cycle).endsAt
                     ? new Date((resource as Cycle).endsAt)
                     : (resource as Project).targetDate
-                    ? new Date((resource as Project).targetDate)
-                    : null;
+                        ? new Date((resource as Project).targetDate)
+                        : null;
 
                 const state: MilestoneState =
                     endDate > today ? "open" : "closed";
@@ -612,8 +613,7 @@ export async function linearWebhookHandler(
                     githubKey,
                     syncedIssue.GitHubRepo.repoName,
                     title,
-                    `${resource.description}${
-                        isCycle ? "" : " (Project)"
+                    `${resource.description}${isCycle ? "" : " (Project)"
                     }\n\n> ${getSyncFooter()}`,
                     state,
                     endDate?.toISOString()
@@ -707,13 +707,13 @@ export async function linearWebhookHandler(
             // Set new assignee
             const newAssignee = data?.assigneeId
                 ? await prisma.user.findFirst({
-                      where: {
-                          linearUserId: data?.assigneeId
-                      },
-                      select: {
-                          githubUsername: true
-                      }
-                  })
+                    where: {
+                        linearUserId: data?.assigneeId
+                    },
+                    select: {
+                        githubUsername: true
+                    }
+                })
                 : null;
 
             if (data?.assigneeId && !newAssignee?.githubUsername) {
@@ -921,6 +921,11 @@ export async function linearWebhookHandler(
         if (actionType === "Comment") {
             // Comment added
 
+            if (!SHARED.SYNC_COMMENTS_FROM_LINEAR_TO_GITHUB) {
+                console.log("Skipping Linear to GitHub comment sync (disabled by configuration)");
+                return "Skipping Linear to GitHub comment sync (disabled by configuration)";
+            }
+
             if (data.id.includes(GITHUB.UUID_SUFFIX) && data.issue) {
                 console.log(skipReason("comment", data.issue.id, true));
                 return skipReason("comment", data.issue.id, true);
@@ -1019,13 +1024,12 @@ export async function linearWebhookHandler(
                 headers: defaultHeaders,
                 json: {
                     title: `[${ticketName}] ${data.title}`,
-                    body: `${
-                        modifiedDescription ?? ""
-                    }\n\n<sub>${getSyncFooter()} | [${ticketName}](${url})</sub>`,
+                    body: `${modifiedDescription ?? ""
+                        }\n\n<sub>${getSyncFooter()} | [${ticketName}](${url})</sub>`,
                     ...(data.assigneeId &&
                         assignee?.githubUsername && {
-                            assignees: [assignee?.githubUsername]
-                        })
+                        assignees: [assignee?.githubUsername]
+                    })
                 }
             });
 
@@ -1049,8 +1053,7 @@ export async function linearWebhookHandler(
                 linearQuery(attachmentQuery, linearKey).then(response => {
                     if (!response?.data?.attachmentCreate?.success) {
                         console.log(
-                            `Failed to add attachment to ${ticketName} for ${
-                                createdIssueData.id
+                            `Failed to add attachment to ${ticketName} for ${createdIssueData.id
                             }: ${response?.error || ""}.`
                         );
                     } else {
